@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <fmt/format.h>
 
 namespace Sorting {
 namespace detail {

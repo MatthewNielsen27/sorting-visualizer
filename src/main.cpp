@@ -111,17 +111,26 @@ void visualize_quicksort(
     std::map<std::size_t, std::vector<RecursionSamples>> samples;
 
     auto qsort_instrumenter = [&](
-            std::vector<uint8_t>& arr,
-            std::size_t lo,
-            std::size_t hi,
-            std::size_t depth
+        std::vector<uint8_t>& arr,
+        std::size_t lo,
+        std::size_t hi,
+        std::size_t depth
     ) {
         RecursionSamples sample{};
 
-        sample.offset = lo;
-        sample.data = std::vector<uint8_t>(arr.begin() + lo, arr.begin() + hi + 1);
+        if (lo < hi) {
+            assert(lo < arr.size());
+            assert(hi < arr.size());
 
-        samples[depth].push_back(sample);
+            auto size = hi - lo;
+
+            assert(size > 0);
+
+            sample.offset = lo;
+            sample.data = std::vector<uint8_t>(arr.begin() + lo, arr.begin() + lo + size + 1);
+
+            samples[depth].push_back(sample);
+        }
     };
 
     Sorting::quicksort(
@@ -133,21 +142,18 @@ void visualize_quicksort(
     std::vector<std::vector<std::uint8_t>> frames(samples.size());
 
     auto get_frame_state = [&] (std::size_t frame_i) {
-        if (frame_i == 0) {
-            return original_state;
-        } else {
-            auto state = frames[frame_i - 1];
+        // Since samples are stored as a series of changes, we'll need to apply them to the previous state.
+        auto state = frame_i == 0
+                ? original_state
+                : frames[frame_i - 1];
 
-            const auto& frame_edits = samples[frame_i];
-
-            for (const auto& edit : frame_edits) {
-                for (auto i = 0; i < edit.data.size(); ++i) {
-                    state[edit.offset + i] = edit.data[i];
-                }
+        for (const auto& edit : samples[frame_i]) {
+            for (auto i = 0; i < edit.data.size(); ++i) {
+                state[edit.offset + i] = edit.data[i];
             }
-
-            return state;
         }
+
+        return state;
     };
 
     for (std::size_t i = 0; i < samples.size(); ++i) {
@@ -182,8 +188,8 @@ int main() {
         }
     );
 
-    visualize_bubblesort("/tmp/bubble.stl", collection);
-    visualize_quicksort("/tmp/quicksort.stl", collection);
+    visualize_bubblesort("/Users/matthew.nielsen/Documents/bubble.stl", collection);
+    visualize_quicksort("/Users/matthew.nielsen/Documents/quicksort.stl", collection);
 
     return 0;
 }
