@@ -1,11 +1,13 @@
-#include <vector>
-#include <random>
 #include <array>
 #include <map>
+#include <random>
+#include <vector>
 
 #include "Geometry.h"
 #include "GeometryIO.h"
+
 #include "Sorting.h"
+#include "SortingInstrumentation.h"
 
 using namespace Geometry;
 
@@ -103,70 +105,42 @@ void visualize_quicksort(
 ) {
     auto items = original_state;
 
-    struct RecursionSamples {
-        std::size_t offset;
-        std::vector<std::uint8_t> data;
-    };
-
-    std::map<std::size_t, std::vector<RecursionSamples>> samples;
-
-    auto qsort_instrumenter = [&](
-        std::vector<uint8_t>& arr,
-        std::size_t lo,
-        std::size_t hi,
-        std::size_t depth
-    ) {
-        RecursionSamples sample{};
-
-        if (lo < hi) {
-            assert(lo < arr.size());
-            assert(hi < arr.size());
-
-            auto size = hi - lo;
-
-            assert(size > 0);
-
-            sample.offset = lo;
-            sample.data = std::vector<uint8_t>(arr.begin() + lo, arr.begin() + lo + size + 1);
-
-            samples[depth].push_back(sample);
-        }
-    };
-
+    Sorting::RecursiveDiffInstrumentation instrumentation;
     Sorting::quicksort(
         items,
-        qsort_instrumenter
+        [&](auto&&... args) { instrumentation(std::forward<decltype(args)>(args)...); }
     );
 
-    // Now let's get the value from the frames!
-    std::vector<std::vector<std::uint8_t>> frames(samples.size());
+    const auto frames = instrumentation.collapse_into_frames(original_state);
 
-    auto get_frame_state = [&] (std::size_t frame_i) {
-        // Since samples are stored as a series of changes, we'll need to apply them to the previous state.
-        auto state = frame_i == 0
-                ? original_state
-                : frames[frame_i - 1];
+    fmt::print("quicksort: {}\n", frames.size());
 
-        for (const auto& edit : samples[frame_i]) {
-            for (auto i = 0; i < edit.data.size(); ++i) {
-                state[edit.offset + i] = edit.data[i];
-            }
-        }
+    Geometry::IO::write_stl(destination, make_triangles(frames, PrismParams{}));
+}
 
-        return state;
-    };
+void visualize_mergesort(
+    const std::string& destination,
+    const std::vector<uint8_t>& original_state
+) {
+    auto items = original_state;
 
-    for (std::size_t i = 0; i < samples.size(); ++i) {
-        frames[i] = get_frame_state(i);
-    }
+    Sorting::RecursiveDiffInstrumentation instrumentation;
 
-    fmt::print("quicksort: {}\n", samples.size());
+    Sorting::mergesort(
+        items,
+        [&](auto&&... args) { instrumentation(std::forward<decltype(args)>(args)...); }
+    );
+
+    auto frames = instrumentation.collapse_into_frames(original_state);
+    std::reverse(frames.begin(), frames.end());
+
+    fmt::print("mergesort: {}\n", frames.size());
 
     Geometry::IO::write_stl(destination, make_triangles(frames, PrismParams{}));
 }
 
 int main() {
-    const auto num_items = 50;
+    const auto num_items = 100;
 
     const auto collection = std::invoke(
         [&] {
@@ -190,6 +164,7 @@ int main() {
 
     visualize_bubblesort("/Users/matthew.nielsen/Documents/bubble.stl", collection);
     visualize_quicksort("/Users/matthew.nielsen/Documents/quicksort.stl", collection);
+    visualize_mergesort("/Users/matthew.nielsen/Documents/mergesort.stl", collection);
 
     return 0;
 }

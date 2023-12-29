@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <vector>
 #include <fmt/format.h>
 
@@ -58,6 +59,34 @@ void quicksort(
     }
 }
 
+template <typename Fn>
+inline void mergesort(
+    std::vector<uint8_t>& items,
+    std::size_t lo,
+    std::size_t hi,
+    std::size_t depth,
+    Fn on_epoch
+) {
+    if (lo == hi) {
+        on_epoch(items, lo, hi, depth);
+        return;
+    }
+
+    auto pivot = (hi + lo) / 2;
+    assert(pivot + 1 <= hi);
+
+    mergesort(items, lo, pivot, depth + 1, on_epoch);
+    mergesort(items, pivot + 1, hi, depth + 1, on_epoch);
+
+    std::inplace_merge(
+        items.begin() + lo,
+        items.begin() + pivot + 1,
+        items.begin() + hi + 1
+    );
+
+    on_epoch(items, lo, hi, depth);
+}
+
 } // namespace Sorting::detail
 
 /// An implementation of the 'Bubble Sort' algorithm, which triggers a callback on its internal state after each epoch.
@@ -97,6 +126,16 @@ void quicksort(
         0,
         on_epoch
     );
+
+    assert(std::is_sorted(items.begin(), items.end()));
+}
+
+template <typename Fn>
+void mergesort(
+    std::vector<std::uint8_t>& items,
+    Fn on_epoch
+) {
+    detail::mergesort(items, 0, items.size() - 1, 0, on_epoch);
 
     assert(std::is_sorted(items.begin(), items.end()));
 }
